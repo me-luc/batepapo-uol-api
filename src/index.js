@@ -66,12 +66,36 @@ server.get("/messages", async (req, res) => {
 	}
 });
 
+server.post("/status", async (req, res) => {
+	const { user: userName } = req.headers;
+
+	console.log("NAME GOT ->", userName);
+	try {
+		const user = await db
+			.collection("participants")
+			.findOne({ name: userName });
+
+		if (!user) return res.sendStatus(404);
+
+		console.log("FOUND ->", user);
+
+		await db
+			.collection("participants")
+			.updateOne({ _id: user._id }, { $set: { lastStatus: Date.now() } });
+
+		return res.sendStatus(200);
+	} catch (error) {
+		console.log(error.message);
+		return res.sendStatus(500);
+	}
+});
+
 server.listen(PORT, function () {
 	console.log("server is running...");
 });
 
 async function checkActiveUsers() {
-	console.log("checnking...");
+	console.log("\nchecking active users...\n");
 	try {
 		const participants = await db
 			.collection("participants")
@@ -79,6 +103,11 @@ async function checkActiveUsers() {
 			.toArray();
 
 		participants.map(async (participant) => {
+			console.log(
+				participant.name,
+				"Active last time - ",
+				formatDate(participant.lastStatus)
+			);
 			const lastActiveTime = (Date.now() - participant.lastStatus) / 1000;
 
 			if (lastActiveTime > 15) {
@@ -106,8 +135,23 @@ async function connectToDataBase() {
 		db = await mongoClient.db("bate-papo-uol");
 		console.log("connected to mongo db");
 	} catch (error) {
-		console.log(error);
+		console.log("error while trying to connect to database");
 	}
+}
+
+function formatDate(date) {
+	const d = new Date(date);
+	const hh = d.getHours();
+	const min = d.getMinutes();
+	const ss = d.getSeconds();
+	const yyyy = d.getFullYear();
+	let mm = d.getMonth() + 1; // Months start at 0!
+	let dd = d.getDate();
+
+	if (dd < 10) dd = "0" + dd;
+	if (mm < 10) mm = "0" + mm;
+
+	return hh + ":" + min + ":" + ss + " - " + dd + "/" + mm + "/" + yyyy;
 }
 
 // --- LIST OF STATUS CODES
