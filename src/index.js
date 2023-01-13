@@ -63,9 +63,20 @@ server.post("/messages", async (req, res) => {
 });
 
 server.get("/messages", async (req, res) => {
+	const { user } = req.headers;
+	const { limit } = req.query;
+
 	try {
 		const messages = await db.collection("messages").find().toArray();
-		return res.status(200).send(messages);
+
+		let filteredMessages = messages.filter(
+			(message) =>
+				message.to === user ||
+				message.to === "Todos" ||
+				message.from === user
+		);
+		if (limit) filteredMessages = filteredMessages.slice(-limit);
+		return res.status(200).send(filteredMessages);
 	} catch (error) {
 		return res.status(500).send(error);
 	}
@@ -96,11 +107,10 @@ server.post("/status", async (req, res) => {
 });
 
 server.listen(PORT, function () {
-	console.log("server is running...");
+	console.log(getTime(Date.now()) + " - server is running...");
 });
 
 async function checkActiveUsers() {
-	console.log("\nchecking active users...\n");
 	try {
 		const participants = await db
 			.collection("participants")
@@ -108,11 +118,6 @@ async function checkActiveUsers() {
 			.toArray();
 
 		participants.map(async (participant) => {
-			console.log(
-				participant.name,
-				"Active last time - ",
-				formatDate(participant.lastStatus)
-			);
 			const lastActiveTime = (Date.now() - participant.lastStatus) / 1000;
 
 			if (lastActiveTime > 15) {
@@ -157,6 +162,15 @@ function formatDate(date) {
 	if (mm < 10) mm = "0" + mm;
 
 	return hh + ":" + min + ":" + ss + " - " + dd + "/" + mm + "/" + yyyy;
+}
+
+function getTime(date) {
+	const d = new Date(date);
+	const hh = d.getHours();
+	const min = d.getMinutes();
+	const ss = d.getSeconds();
+
+	return hh + ":" + min + ":" + ss;
 }
 
 // --- LIST OF STATUS CODES
