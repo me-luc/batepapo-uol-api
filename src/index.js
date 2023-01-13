@@ -3,6 +3,7 @@ import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import Joi from "joi";
+import dayjs from "dayjs";
 
 dotenv.config();
 
@@ -14,7 +15,6 @@ setInterval(checkActiveUsers, 15000);
 checkActiveUsers();
 
 const server = express();
-const PORT = 5000;
 
 server.use(cors());
 server.use(express.json());
@@ -26,12 +26,22 @@ server.post("/participants", async (req, res) => {
 		const doesUserExist = await db
 			.collection("participants")
 			.findOne({ name });
-		if (doesUserExist) return res.sendStatus(409);
+
+		if (doesUserExist) return res.sendStatus(422);
 
 		await db.collection("participants").insertOne({
 			name,
 			lastStatus: Date.now(),
 		});
+
+		await db.collection("messages").insertOne({
+			from: name,
+			to: "Todos",
+			text: "entra na sala...",
+			type: "status",
+			time: getNowTime(),
+		});
+
 		return res.sendStatus(201);
 	} catch (error) {
 		return res.sendStatus(500).send(error);
@@ -55,7 +65,9 @@ server.post("/messages", async (req, res) => {
 	const { user: from } = req.headers;
 
 	try {
-		await db.collection("messages").insertOne({ from, to, text, type });
+		await db
+			.collection("messages")
+			.insertOne({ from, to, text, type, time: getNowTime() });
 		return res.sendStatus(201);
 	} catch (error) {
 		return res.status(500).send(error.message);
@@ -106,7 +118,7 @@ server.post("/status", async (req, res) => {
 	}
 });
 
-server.listen(PORT, function () {
+server.listen(5000, function () {
 	console.log(getTime(Date.now()) + " - server is running...");
 });
 
@@ -149,28 +161,22 @@ async function connectToDataBase() {
 	}
 }
 
-function formatDate(date) {
+function getTime(date) {
 	const d = new Date(date);
 	const hh = d.getHours();
 	const min = d.getMinutes();
 	const ss = d.getSeconds();
-	const yyyy = d.getFullYear();
 	let mm = d.getMonth() + 1; // Months start at 0!
 	let dd = d.getDate();
 
 	if (dd < 10) dd = "0" + dd;
 	if (mm < 10) mm = "0" + mm;
 
-	return hh + ":" + min + ":" + ss + " - " + dd + "/" + mm + "/" + yyyy;
+	return dd + "/" + mm + "\\ " + hh + ":" + min + ":" + ss + " ";
 }
 
-function getTime(date) {
-	const d = new Date(date);
-	const hh = d.getHours();
-	const min = d.getMinutes();
-	const ss = d.getSeconds();
-
-	return hh + ":" + min + ":" + ss;
+function getNowTime() {
+	return dayjs().format("HH:mm:ss");
 }
 
 // --- LIST OF STATUS CODES
