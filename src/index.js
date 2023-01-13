@@ -19,6 +19,30 @@ const server = express();
 server.use(cors());
 server.use(express.json());
 
+server.post("/status", async (req, res) => {
+	const { user: userName } = req.headers;
+
+	try {
+		const user = await db
+			.collection("participants")
+			.findOne({ name: userName });
+
+		if (!user) return res.sendStatus(404);
+
+		await db
+			.collection("participants")
+			.updateOne(
+				{ _id: ObjectId(user._id) },
+				{ $set: { lastStatus: Date.now() } }
+			);
+
+		return res.sendStatus(200);
+	} catch (error) {
+		console.log(error.message);
+		return res.sendStatus(500);
+	}
+});
+
 server.post("/participants", async (req, res) => {
 	const { name } = req.body;
 
@@ -87,33 +111,52 @@ server.get("/messages", async (req, res) => {
 				message.to === "Todos" ||
 				message.from === user
 		);
-		if (limit) filteredMessages = filteredMessages.slice(-limit);
+		if (limit) filteredMessages = filteredMessages.slice(-parseInt(limit));
 		return res.status(200).send(filteredMessages);
 	} catch (error) {
 		return res.status(500).send(error);
 	}
 });
 
-server.post("/status", async (req, res) => {
-	const { user: userName } = req.headers;
+server.delete("/messages/:id", async (req, res) => {
+	const { id } = req.params;
+	const { user } = req.headers;
 
 	try {
-		const user = await db
-			.collection("participants")
-			.findOne({ name: userName });
+		const foundMessage = await db
+			.collection("messages")
+			.findOne({ _id: ObjectId(id) });
 
-		if (!user) return res.sendStatus(404);
+		if (!foundMessage) return res.sendStatus(404);
+
+		if (foundMessage.from !== user) return res.sendStatus(401);
+
+		await db.collection("messages").deleteOne({ _id: ObjectId(id) });
+	} catch (error) {
+		console.log(error);
+		return res.sendStatus(500);
+	}
+});
+
+server.put("/messages/:id", async (req, res) => {
+	const { text } = req.body;
+	const { id } = req.params;
+	const { user } = req.headers;
+
+	try {
+		const foundMessage = await db
+			.collection("messages")
+			.findOne({ _id: ObjectId(id) });
+
+		if (!foundMessage) return res.sendStatus(404);
+
+		if (foundMessage.from !== user) return res.sendStatus(401);
 
 		await db
-			.collection("participants")
-			.updateOne(
-				{ _id: ObjectId(user._id) },
-				{ $set: { lastStatus: Date.now() } }
-			);
-
-		return res.sendStatus(200);
+			.collection("messages")
+			.updateOne({ _id: ObjectId(id) }, { $set: { text } });
 	} catch (error) {
-		console.log(error.message);
+		console.log(error);
 		return res.sendStatus(500);
 	}
 });
