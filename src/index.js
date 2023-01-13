@@ -1,12 +1,12 @@
 import express from "express";
 import cors from "cors";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import Joi from "joi";
 
 dotenv.config();
 
-const mongoClient = new MongoClient(process.env.MONGO_URI);
+const mongoClient = new MongoClient(process.env.DATABASE_URL);
 let db;
 await connectToDataBase();
 setInterval(checkActiveUsers, 15000);
@@ -23,13 +23,18 @@ server.post("/participants", async (req, res) => {
 	const { name } = req.body;
 
 	try {
+		const doesUserExist = await db
+			.collection("participants")
+			.findOne({ name });
+		if (doesUserExist) return res.sendStatus(409);
+
 		await db.collection("participants").insertOne({
 			name,
 			lastStatus: Date.now(),
 		});
 		return res.sendStatus(201);
 	} catch (error) {
-		return res.status(500).send(error);
+		return res.sendStatus(500).send(error);
 	}
 });
 
@@ -47,9 +52,10 @@ server.get("/participants", async (req, res) => {
 
 server.post("/messages", async (req, res) => {
 	const { to, text, type } = req.body;
+	const { user: from } = req.headers;
 
 	try {
-		await db.collection("messages").insertOne({ to, text, type });
+		await db.collection("messages").insertOne({ from, to, text, type });
 		return res.sendStatus(201);
 	} catch (error) {
 		return res.status(500).send(error.message);
@@ -57,7 +63,6 @@ server.post("/messages", async (req, res) => {
 });
 
 server.get("/messages", async (req, res) => {
-	console.log("hi");
 	try {
 		const messages = await db.collection("messages").find().toArray();
 		return res.status(200).send(messages);
@@ -69,7 +74,6 @@ server.get("/messages", async (req, res) => {
 server.post("/status", async (req, res) => {
 	const { user: userName } = req.headers;
 
-	console.log("NAME GOT ->", userName);
 	try {
 		const user = await db
 			.collection("participants")
@@ -77,11 +81,12 @@ server.post("/status", async (req, res) => {
 
 		if (!user) return res.sendStatus(404);
 
-		console.log("FOUND ->", user);
-
 		await db
 			.collection("participants")
-			.updateOne({ _id: user._id }, { $set: { lastStatus: Date.now() } });
+			.updateOne(
+				{ _id: ObjectId(user._id) },
+				{ $set: { lastStatus: Date.now() } }
+			);
 
 		return res.sendStatus(200);
 	} catch (error) {
@@ -112,7 +117,7 @@ async function checkActiveUsers() {
 
 			if (lastActiveTime > 15) {
 				await db.collection("messages").insertOne({
-					from: "xxx",
+					from: participant.name,
 					to: "Todos",
 					text: "sai da sala...",
 					type: "status",
@@ -120,7 +125,7 @@ async function checkActiveUsers() {
 				});
 				await db
 					.collection("participants")
-					.deleteOne({ _id: participant._id });
+					.deleteOne({ _id: ObjectId(participant._id) });
 				console.log(participant.name, "deleted for inactivity");
 			}
 		});
