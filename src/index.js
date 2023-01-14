@@ -20,19 +20,21 @@ server.use(cors());
 server.use(express.json());
 
 server.post("/status", async (req, res) => {
-	const { user: userName } = req.headers;
+	const { user } = req.headers;
+
+	if (!user) return res.sendStatus(422);
 
 	try {
-		const user = await db
+		const foundUser = await db
 			.collection("participants")
-			.findOne({ name: userName });
+			.findOne({ name: user });
 
-		if (!user) return res.sendStatus(404);
+		if (!foundUser) return res.sendStatus(404);
 
 		await db
 			.collection("participants")
 			.updateOne(
-				{ _id: ObjectId(user._id) },
+				{ _id: ObjectId(foundUser._id) },
 				{ $set: { lastStatus: Date.now() } }
 			);
 
@@ -138,7 +140,13 @@ server.get("/messages", async (req, res) => {
 				message.to === "Todos" ||
 				message.from === user
 		);
-		if (limit) filteredMessages = filteredMessages.slice(-parseInt(limit));
+
+		if (limit) {
+			if (limit < 0) return res.sendStatus(422);
+			filteredMessages = filteredMessages
+				.slice(-parseInt(limit))
+				.reverse();
+		}
 		return res.status(200).send(filteredMessages);
 	} catch (error) {
 		return res.status(500).send(error);
