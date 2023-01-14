@@ -101,13 +101,16 @@ server.get("/participants", async (req, res) => {
 
 server.post("/messages", async (req, res) => {
 	const messageData = req.body;
-	const { user: from } = req.headers;
+	const { user } = req.headers;
 
 	const schema = Joi.object({
 		to: Joi.string().min(1).required(),
 		text: Joi.string().min(1).required(),
-		type: Joi.string().valid("message", " private_message").required(),
+		type: Joi.string().valid("message", "private_message").required(),
 	});
+
+	if (!user)
+		return res.status(422).send("Cabeçalho deve ter formato válido!");
 
 	const validation = schema.validate(messageData, { abortEarly: false });
 
@@ -117,10 +120,19 @@ server.post("/messages", async (req, res) => {
 	}
 
 	try {
+		const foundUser = await db
+			.collection("participants")
+			.findOne({ name: user });
+
+		if (!foundUser)
+			return res
+				.status(422)
+				.send("Usuário não foi encontrado na lista de ativos");
+
 		const { to, text, type } = messageData;
 		await db
 			.collection("messages")
-			.insertOne({ from, to, text, type, time: getNowTime() });
+			.insertOne({ from: user, to, text, type, time: getNowTime() });
 		return res.sendStatus(201);
 	} catch (error) {
 		return res.status(500).send(error.message);
@@ -130,6 +142,21 @@ server.post("/messages", async (req, res) => {
 server.get("/messages", async (req, res) => {
 	const { user } = req.headers;
 	const { limit } = req.query;
+
+	const schema = Joi.object({
+		limit: Joi.number().min(1).required(),
+	});
+
+	if (Object.keys(req.query).length > 0) {
+		const validation = schema.validate(req.query, { abortEarly: false });
+
+		if (validation.error) {
+			const errors = validation.error.details.map(
+				(detail) => detail.message
+			);
+			return res.status(422).send(errors);
+		}
+	}
 
 	try {
 		const messages = await db.collection("messages").find().toArray();
@@ -232,7 +259,7 @@ async function checkActiveUsers() {
 async function connectToDataBase() {
 	try {
 		mongoClient.connect();
-		db = await mongoClient.db();
+		db = await mongoClient.db("bate-papo-uol");
 		console.log("connected to mongo db");
 	} catch (error) {
 		console.log("error while trying to connect to database");
