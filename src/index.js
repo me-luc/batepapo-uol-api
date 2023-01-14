@@ -189,11 +189,16 @@ server.delete("/messages/:id", async (req, res) => {
 			.collection("messages")
 			.findOne({ _id: ObjectId(id) });
 
-		if (!foundMessage) return res.sendStatus(404);
+		if (!foundMessage)
+			return res
+				.status(404)
+				.send("Messagem não existe ou não foi encontrada");
 
 		if (foundMessage.from !== user) return res.sendStatus(401);
 
 		await db.collection("messages").deleteOne({ _id: ObjectId(id) });
+
+		return res.sendStatus(200);
 	} catch (error) {
 		console.log(error);
 		return res.sendStatus(500);
@@ -204,6 +209,24 @@ server.put("/messages/:id", async (req, res) => {
 	const { text } = req.body;
 	const { id } = req.params;
 	const { user } = req.headers;
+
+	const schema = Joi.object({
+		to: Joi.string().min(1).required(),
+		text: Joi.string().min(1).required(),
+		type: Joi.string().valid("message", "private_message").required(),
+	});
+
+	if (!user)
+		return res
+			.status(422)
+			.send("Cabeçalho deve ter formato válido / conter 'user'!");
+
+	const validation = schema.validate(req.body, { abortEarly: false });
+
+	if (validation.error) {
+		const errors = validation.error.details.map((detail) => detail.message);
+		return res.status(422).send(errors);
+	}
 
 	try {
 		const foundMessage = await db
