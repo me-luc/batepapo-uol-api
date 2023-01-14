@@ -44,9 +44,22 @@ server.post("/status", async (req, res) => {
 });
 
 server.post("/participants", async (req, res) => {
-	const { name } = req.body;
+	const participant = req.body;
+
+	const schema = Joi.object({
+		name: Joi.string().min(1).required(),
+	});
+
+	const validation = schema.validate(participant, { abortEarly: false });
+
+	if (validation.error) {
+		const errors = validation.error.details.map((detail) => detail.message);
+		return res.status(422).send(errors);
+	}
 
 	try {
+		const { name } = participant;
+
 		const doesUserExist = await db
 			.collection("participants")
 			.findOne({ name });
@@ -85,10 +98,24 @@ server.get("/participants", async (req, res) => {
 });
 
 server.post("/messages", async (req, res) => {
-	const { to, text, type } = req.body;
+	const messageData = req.body;
 	const { user: from } = req.headers;
 
+	const schema = Joi.object({
+		to: Joi.string().min(1).required(),
+		text: Joi.string().min(1).required(),
+		type: Joi.string().valid("message", " private_message").required(),
+	});
+
+	const validation = schema.validate(messageData, { abortEarly: false });
+
+	if (validation.error) {
+		const errors = validation.error.details.map((detail) => detail.message);
+		return res.status(422).send(errors);
+	}
+
 	try {
+		const { to, text, type } = messageData;
 		await db
 			.collection("messages")
 			.insertOne({ from, to, text, type, time: getNowTime() });
