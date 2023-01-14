@@ -64,7 +64,7 @@ server.post("/participants", async (req, res) => {
 			.collection("participants")
 			.findOne({ name });
 
-		if (doesUserExist) return res.sendStatus(422);
+		if (doesUserExist) return res.sendStatus(409);
 
 		await db.collection("participants").insertOne({
 			name,
