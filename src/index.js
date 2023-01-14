@@ -174,6 +174,7 @@ server.get("/messages", async (req, res) => {
 				.slice(-parseInt(limit))
 				.reverse();
 		}
+
 		return res.status(200).send(filteredMessages);
 	} catch (error) {
 		return res.status(500).send(error);
@@ -240,6 +241,8 @@ server.put("/messages/:id", async (req, res) => {
 		await db
 			.collection("messages")
 			.updateOne({ _id: ObjectId(id) }, { $set: { text } });
+
+		return res.sendStatus(200);
 	} catch (error) {
 		console.log(error);
 		return res.sendStatus(500);
