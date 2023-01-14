@@ -259,7 +259,7 @@ async function checkActiveUsers() {
 async function connectToDataBase() {
 	try {
 		mongoClient.connect();
-		db = await mongoClient.db("bate-papo-uol");
+		db = await mongoClient.db();
 		console.log("connected to mongo db");
 	} catch (error) {
 		console.log("error while trying to connect to database");
